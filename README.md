@@ -1,9 +1,12 @@
   # SimplePCV
-Creating Ambient occlusion render of point clopuds (elevation maps) using "Portion de Ciel Visible" (PCV) algorithm
+Creating Ambient occlusion render of point clouds (elevation maps, DSM or DTM) using "Portion de Ciel Visible" (PCV) algorithm.
+A small PySide6 GUI allows to play with the colormap range (using matplotlib 'Greys' by default).
 
 ## Introduction
-Making convincing ambient occlusion renders from elevation maps (terrains or construction sites) can be useful for better point cloud segmentation. Using CloudCompare can be overkill for such a task.
+Making convincing ambient occlusion renders from elevation maps (terrains or construction sites, for example) can be useful for better point cloud segmentation. Using CloudCompare can be overkill for such a task.
 Based on Duguet, Florent & Girardeau-Montaut, Daniel. (2004). Rendu en Portion de Ciel Visible de Gros Nuages de Points 3D.
+
+NOTE: creating the input dtm tif can be done with CloudCompare or any point cloud rasterization tools.
 
 \#Pillow \#Open3D \#Voxels \#ImageProcessing \#Pointcloud 
 
