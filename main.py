@@ -1,4 +1,8 @@
-# This is a super simple script to create PCV renders from height maps
+"""
+This is a super simple script to create PCV renders from height maps
+Based on
+Duguet, Florent & Girardeau-Montaut, Daniel. (2004). Rendu en Portion de Ciel Visible de Gros Nuages de Points 3D.
+"""
 
 import numpy as np
 import rasterio as rio
