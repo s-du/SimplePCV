@@ -14,7 +14,8 @@ from PySide6.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 SCALE_FACTOR = 100
-IMAGE_PATH = 'dtm.tif' # Replace with path to image
+IMAGE_PATH = 'dtm.tif'  # Replace with path to image
+
 
 class ImageViewer(QMainWindow):
     def __init__(self, image):
@@ -79,6 +80,7 @@ class ImageViewer(QMainWindow):
 def get_tangent_angle(height_diff, distance):
     return height_diff / distance
 
+
 @jit(nopython=True)
 def get_sky_portion_for_direction(image, start_x, start_y, dx, dy, width, height):
     max_tangent = -np.inf
@@ -90,13 +92,15 @@ def get_sky_portion_for_direction(image, start_x, start_y, dx, dy, width, height
             max_tangent = max(max_tangent, tangent)
         x += dx
         y += dy
-        distance += np.sqrt(dx**2 + dy**2)
+        distance += np.sqrt(dx ** 2 + dy ** 2)
     return np.arctan(max_tangent)
+
 
 @jit(nopython=True)
 def compute_sky_visibility(image, num_directions=40):
     height, width = image.shape
-    directions = [(np.cos(2 * np.pi * i / num_directions), np.sin(2 * np.pi * i / num_directions)) for i in range(num_directions)]
+    directions = [(np.cos(2 * np.pi * i / num_directions), np.sin(2 * np.pi * i / num_directions)) for i in
+                  range(num_directions)]
     sky_visibility = np.zeros((height, width))
     for y in range(height):
         for x in range(width):
@@ -123,4 +127,3 @@ if __name__ == '__main__':
     viewer.show()
 
     sys.exit(app.exec())
-
