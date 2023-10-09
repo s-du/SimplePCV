@@ -4,23 +4,19 @@ Based on
 Duguet, Florent & Girardeau-Montaut, Daniel. (2004). Rendu en Portion de Ciel Visible de Gros Nuages de Points 3D.
 """
 
-import cv2
 import os
 import numpy as np
 import rasterio as rio
-import matplotlib.pyplot as plt
-
-from numba import jit
 import sys
 from PySide6.QtWidgets import *
 from PySide6.QtCore import *
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtGui import *
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-import matplotlib.colors as mcol
+import simplepcv as spcv
+
 
 SCALE_FACTOR = 100
-IMAGE_PATH = 'dtm.tif'  # Replace with path to image
+IMAGE_PATH = 'dtm_large.tif'  # Replace with path to image
 
 class UiLoader(QUiLoader):
     """
@@ -270,6 +266,8 @@ class ImageViewer(QMainWindow):
         print(uifile)
         loadUi(uifile, self)
 
+        self.setWindowTitle('Create PCV Renders')
+
         self.image = image
 
         self.comboBox.addItems(['Red', 'Green', 'Blue'])
@@ -278,15 +276,18 @@ class ImageViewer(QMainWindow):
         self.viewer = PhotoViewer(self)
         self.horizontalLayout_6.addWidget(self.viewer)
 
+        vmin = np.percentile(self.image, 1)  # 1st percentile
+        vmax = np.percentile(self.image, 99)
+
         # Create the sliders and their labels
         self.slider_min.setMinimum(int(self.image.min() * SCALE_FACTOR))
         self.slider_min.setMaximum(int(self.image.max() * SCALE_FACTOR))
-        self.slider_min.setValue(int(self.image.min() * SCALE_FACTOR))
+        self.slider_min.setValue(int(vmin * SCALE_FACTOR))
         self.slider_min.valueChanged.connect(self.update_image)
 
         self.slider_max.setMinimum(int(self.image.min() * SCALE_FACTOR))
         self.slider_max.setMaximum(int(self.image.max() * SCALE_FACTOR))
-        self.slider_max.setValue(int(self.image.max() * SCALE_FACTOR))
+        self.slider_max.setValue(int(vmax * SCALE_FACTOR))
         self.slider_max.valueChanged.connect(self.update_image)
 
         self.dial.valueChanged.connect(self.update_image)
@@ -312,91 +313,8 @@ class ImageViewer(QMainWindow):
         self.min_value_label.setText(f"Current Min Value: {vmin:.4f}")
         self.max_value_label.setText(f"Current Max Value: {vmax:.4f}")
 
-        pix = export_results(self.image, vmin, vmax, color_choice,color_factor)
+        pix = spcv.export_results(self.image, vmin, vmax, color_choice,color_factor)
         self.viewer.setPhoto(numpy_array_to_qpixmap(pix))
-
-
-
-@jit(nopython=True)
-def get_tangent_angle(height_diff, distance):
-    return height_diff / distance
-
-
-@jit(nopython=True)
-def get_sky_portion_for_direction(image, start_x, start_y, dx, dy, width, height):
-    max_tangent = -np.inf
-    distance = 0
-    x, y = start_x, start_y
-    while 0 <= x < width and 0 <= y < height:
-        if distance > 0:  # Don't consider the starting pixel
-            tangent = get_tangent_angle(image[int(y), int(x)] - image[int(start_y), int(start_x)], distance)
-            max_tangent = max(max_tangent, tangent)
-        x += dx
-        y += dy
-        distance += np.sqrt(dx ** 2 + dy ** 2)
-    return np.arctan(max_tangent)
-
-
-@jit(nopython=True)
-def compute_sky_visibility(image, num_directions=40):
-    height, width = image.shape
-    directions = [(np.cos(2 * np.pi * i / num_directions), np.sin(2 * np.pi * i / num_directions)) for i in
-                  range(num_directions)]
-    sky_visibility = np.zeros((height, width))
-    for y in range(height):
-        for x in range(width):
-            total_angle = 0
-            for dx, dy in directions:
-                total_angle += get_sky_portion_for_direction(image, x, y, dx, dy, width, height)
-            sky_visibility[y, x] = total_angle / num_directions
-    return sky_visibility
-
-
-def export_results(visibility, vmin, vmax, color_choice, color_factor):
-    # Normalize data
-    normalized_data = (visibility - vmin) / (vmax - vmin)
-
-    def adjust_color(color, color_factor, h_color):
-        r, g, b = color
-
-        # Calculate grayscale intensity (average of RGB values)
-        intensity = (r + g + b) / 3.0
-
-
-        # Adjust the coloring factor based on intensity
-        adjusted_color_factor = color_factor * (1 - intensity)
-
-        # Apply the adjusted coloring factor to the blue component
-        if h_color == 0:
-            r += adjusted_color_factor * (1 - r)  # Increase blue but ensure it doesn't exceed 1
-            return min(r, 1), g, b  # Ensure doesn't exceed 1
-        elif h_color == 1:
-            g += adjusted_color_factor * (1 - g)  # Increase blue but ensure it doesn't exceed 1
-            return r, min(g,1), b  # Ensure doesn't exceed 1
-        elif h_color == 2:
-            b += adjusted_color_factor * (1 - b)  # Increase blue but ensure it doesn't exceed 1
-            return r, g, min(b,1)  # Ensure doesn't exceed 1
-
-    # Original colors
-    colors = [(255, 255, 255), (150, 150, 150), (80, 80, 80), (0, 0, 0)]
-    colors_scaled = [np.array(x).astype(np.float32) / 255 for x in colors]
-
-    # Adjust colors
-    colors_adjusted = [adjust_color(color, color_factor, color_choice) for color in colors_scaled]
-
-    # Create colormap
-    custom_cmap = mcol.LinearSegmentedColormap.from_list('my_colormap', colors_adjusted, N=256)
-
-    # Apply a colormap from matplotlib (e.g., 'viridis')
-    colored_data = custom_cmap(normalized_data)
-
-    # Convert the RGB data to uint8 [0, 255]
-    img = (colored_data[:, :, :3] * 255).astype(np.uint8)
-
-    # Convert RGB to BGR for OpenCV
-    img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-
-    return img_bgr
 
 
 # Press the green button in the gutter to run the script.
@@ -408,7 +326,7 @@ if __name__ == '__main__':
         elevation[elevation < 0] = np.nan
         height_data = elevation
 
-    visibility = compute_sky_visibility(height_data)
+    visibility = spcv.compute_sky_visibility(height_data)
 
     app = QApplication(sys.argv)
     viewer = ImageViewer(visibility)
