@@ -4,6 +4,7 @@ Based on
 Duguet, Florent & Girardeau-Montaut, Daniel. (2004). Rendu en Portion de Ciel Visible de Gros Nuages de Points 3D.
 """
 
+import cv2
 import numpy as np
 import rasterio as rio
 import matplotlib.pyplot as plt
@@ -57,6 +58,12 @@ class ImageViewer(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
 
+        # Compute gradient
+        gradient_y, gradient_x = np.gradient(image)
+        self.magnitude = np.sqrt(gradient_x ** 2 + gradient_y ** 2)
+        self.threshold = np.percentile(self.magnitude, 85)
+        self.max_gradient_zones = self.magnitude > self.threshold
+
         self.update_image()
 
     def update_image(self):
@@ -71,7 +78,11 @@ class ImageViewer(QMainWindow):
         # Clear the current image
         self.ax.cla()
 
-        # Display the image with the new colormap bounds
+        # Overlay max gradient zones
+        overlay_color = np.where(self.image > self.image.mean(), vmax, vmin)  # 1 for white, 0 for black
+        overlay = np.where(self.max_gradient_zones, overlay_color, self.image) # to test
+
+        # Display the image with the new colormap bounds and overlay (replace self.image with overlay)
         self.ax.imshow(self.image, cmap='Greys', vmin=vmin, vmax=vmax)
         self.canvas.draw()
 
@@ -111,6 +122,32 @@ def compute_sky_visibility(image, num_directions=40):
     return sky_visibility
 
 
+def create_pcv_tif(dtm_path, dest_path, vmin, vmax):
+    with rio.open(dtm_path) as src:
+        elevation = src.read(1)
+        # Set masked values to np.nan
+        elevation[elevation < 0] = np.nan
+        height_data = elevation
+
+    visibility = compute_sky_visibility(height_data)
+
+
+    # Normalize data
+    normalized_data = (visibility - vmin) / (vmax - vmin)
+
+    # Apply a colormap from matplotlib (e.g., 'viridis')
+    colored_data = plt.cm.Greys(normalized_data)
+
+    # Convert the RGB data to uint8 [0, 255]
+    img = (colored_data[:, :, :3] * 255).astype(np.uint8)
+
+    # Convert RGB to BGR for OpenCV
+    img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+    cv2.imwrite(dest_path, img_bgr)
+
+
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     # Test path
@@ -122,8 +159,11 @@ if __name__ == '__main__':
 
     visibility = compute_sky_visibility(height_data)
 
+    create_pcv_tif('dtm_large.tif', 'out.jpg', -0.1,0.5)
+
     app = QApplication(sys.argv)
     viewer = ImageViewer(visibility)
     viewer.show()
+
 
     sys.exit(app.exec())
