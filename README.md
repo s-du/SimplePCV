@@ -18,7 +18,10 @@ Install all requirements, then simply run main.py (Do not forget to change the i
 One test image is provided
 
 <p align="center">
-    <a href="https://ibb.co/G3YVhdP"><img src="https://i.ibb.co/S7YKL6v/montage-pcv.png" alt="montage-pcv" border="0"></a>
+  <a><img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcDZtODQ3M2IyNWRiN3VoaGEzOWk5bGowdWRxenQyZ2FvZ3Uwajd4cCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/yPwLcjsh47gaCnmW8q/giphy.gif" alt="input" border="0"></a>
+</p>
+<p align="center">
+  <a href="https://ibb.co/Bn3Yrkw"><img src="https://i.ibb.co/3RdPMKk/Capture-d-cran-2023-10-09-122414.png" alt="Capture-d-cran-2023-10-09-122414" border="0"></a>
   
     Simple PCV (ambient occlusion)
 </p>
