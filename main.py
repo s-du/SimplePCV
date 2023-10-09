@@ -149,6 +149,9 @@ class PhotoViewer(QGraphicsView):
         self.setBackgroundBrush(QBrush(QColor(255, 255, 255)))
         self.setFrameShape(QFrame.NoFrame)
 
+        self.setMinimumSize(400, 600)
+
+
         self.rect = False
         self.select_point = False
 
@@ -233,9 +236,6 @@ class PhotoViewer(QGraphicsView):
         elif self.select_point:
             pass
 
-        else:
-            if self._photo.isUnderMouse():
-                self.photoClicked.emit(self.mapToScene(event.pos()).toPoint())
         super(PhotoViewer, self).mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -272,6 +272,8 @@ class ImageViewer(QMainWindow):
 
         self.image = image
 
+        self.comboBox.addItems(['Red', 'Green', 'Blue'])
+
         # add viewer
         self.viewer = PhotoViewer(self)
         self.horizontalLayout_6.addWidget(self.viewer)
@@ -287,6 +289,9 @@ class ImageViewer(QMainWindow):
         self.slider_max.setValue(int(self.image.max() * SCALE_FACTOR))
         self.slider_max.valueChanged.connect(self.update_image)
 
+        self.dial.valueChanged.connect(self.update_image)
+        self.comboBox.currentIndexChanged.connect(self.update_image)
+
         # Compute gradient
         gradient_y, gradient_x = np.gradient(image)
         self.magnitude = np.sqrt(gradient_x ** 2 + gradient_y ** 2)
@@ -295,16 +300,19 @@ class ImageViewer(QMainWindow):
 
         self.update_image()
 
+
     def update_image(self):
         # Get the min and max values from the sliders and rescale them
         vmin = self.slider_min.value() / SCALE_FACTOR
         vmax = self.slider_max.value() / SCALE_FACTOR
+        color_factor = self.dial.value() / 100
+        color_choice = self.comboBox.currentIndex()
 
         # Update the labels with the current slider values
         self.min_value_label.setText(f"Current Min Value: {vmin:.4f}")
         self.max_value_label.setText(f"Current Max Value: {vmax:.4f}")
 
-        pix = export_results(self.image, vmin, vmax, 0.8,0.2)
+        pix = export_results(self.image, vmin, vmax, color_choice,color_factor)
         self.viewer.setPhoto(numpy_array_to_qpixmap(pix))
 
 
@@ -344,31 +352,37 @@ def compute_sky_visibility(image, num_directions=40):
     return sky_visibility
 
 
-def export_results(visibility, vmin, vmax, shift_factor, color_factor):
+def export_results(visibility, vmin, vmax, color_choice, color_factor):
     # Normalize data
     normalized_data = (visibility - vmin) / (vmax - vmin)
 
-    def adjust_color(color, shift_factor, color_factor):
-        # Apply the shifting factor
-        r, g, b = [x * shift_factor for x in color]
+    def adjust_color(color, color_factor, h_color):
+        r, g, b = color
 
         # Calculate grayscale intensity (average of RGB values)
         intensity = (r + g + b) / 3.0
+
 
         # Adjust the coloring factor based on intensity
         adjusted_color_factor = color_factor * (1 - intensity)
 
         # Apply the adjusted coloring factor to the blue component
-        b += adjusted_color_factor * (1 - b)  # Increase blue but ensure it doesn't exceed 1
-
-        return r, g, min(b, 1)  # Ensure blue doesn't exceed 1
+        if h_color == 0:
+            r += adjusted_color_factor * (1 - r)  # Increase blue but ensure it doesn't exceed 1
+            return min(r, 1), g, b  # Ensure doesn't exceed 1
+        elif h_color == 1:
+            g += adjusted_color_factor * (1 - g)  # Increase blue but ensure it doesn't exceed 1
+            return r, min(g,1), b  # Ensure doesn't exceed 1
+        elif h_color == 2:
+            b += adjusted_color_factor * (1 - b)  # Increase blue but ensure it doesn't exceed 1
+            return r, g, min(b,1)  # Ensure doesn't exceed 1
 
     # Original colors
-    colors = [(255, 255, 255), (170, 170, 170), (85, 85, 85), (0, 0, 0)]
+    colors = [(255, 255, 255), (150, 150, 150), (80, 80, 80), (0, 0, 0)]
     colors_scaled = [np.array(x).astype(np.float32) / 255 for x in colors]
 
     # Adjust colors
-    colors_adjusted = [adjust_color(color, shift_factor, color_factor) for color in colors_scaled]
+    colors_adjusted = [adjust_color(color, color_factor, color_choice) for color in colors_scaled]
 
     # Create colormap
     custom_cmap = mcol.LinearSegmentedColormap.from_list('my_colormap', colors_adjusted, N=256)
