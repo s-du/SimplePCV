@@ -13,6 +13,7 @@ import sys
 from PySide6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QSlider, QLabel
 from PySide6.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import matplotlib.colors as mcol
 
 SCALE_FACTOR = 100
 IMAGE_PATH = 'dtm.tif'  # Replace with path to image
@@ -122,21 +123,37 @@ def compute_sky_visibility(image, num_directions=40):
     return sky_visibility
 
 
-def create_pcv_tif(dtm_path, dest_path, vmin, vmax):
-    with rio.open(dtm_path) as src:
-        elevation = src.read(1)
-        # Set masked values to np.nan
-        elevation[elevation < 0] = np.nan
-        height_data = elevation
-
-    visibility = compute_sky_visibility(height_data)
-
-
+def export_results(visibiliy, dest_path, vmin, vmax, shift_factor, color_factor):
     # Normalize data
     normalized_data = (visibility - vmin) / (vmax - vmin)
 
+    def adjust_color(color, shift_factor, color_factor):
+        # Apply the shifting factor
+        r, g, b = [x * shift_factor for x in color]
+
+        # Calculate grayscale intensity (average of RGB values)
+        intensity = (r + g + b) / 3.0
+
+        # Adjust the coloring factor based on intensity
+        adjusted_color_factor = color_factor * (1 - intensity)
+
+        # Apply the adjusted coloring factor to the blue component
+        b += adjusted_color_factor * (1 - b)  # Increase blue but ensure it doesn't exceed 1
+
+        return r, g, min(b, 1)  # Ensure blue doesn't exceed 1
+
+    # Original colors
+    colors = [(255, 255, 255), (170, 170, 170), (85, 85, 85), (0, 0, 0)]
+    colors_scaled = [np.array(x).astype(np.float32) / 255 for x in colors]
+
+    # Adjust colors
+    colors_adjusted = [adjust_color(color, shift_factor, color_factor) for color in colors_scaled]
+
+    # Create colormap
+    custom_cmap = mcol.LinearSegmentedColormap.from_list('my_colormap', colors_adjusted, N=256)
+
     # Apply a colormap from matplotlib (e.g., 'viridis')
-    colored_data = plt.cm.Greys(normalized_data)
+    colored_data = custom_cmap(normalized_data)
 
     # Convert the RGB data to uint8 [0, 255]
     img = (colored_data[:, :, :3] * 255).astype(np.uint8)
@@ -145,7 +162,6 @@ def create_pcv_tif(dtm_path, dest_path, vmin, vmax):
     img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
     cv2.imwrite(dest_path, img_bgr)
-
 
 
 # Press the green button in the gutter to run the script.
@@ -159,7 +175,7 @@ if __name__ == '__main__':
 
     visibility = compute_sky_visibility(height_data)
 
-    create_pcv_tif('dtm_large.tif', 'out.jpg', -0.1,0.5)
+    export_results('dtm.tif', 'out.jpg', -0.1,0.5, 0.8,0.2 )
 
     app = QApplication(sys.argv)
     viewer = ImageViewer(visibility)
