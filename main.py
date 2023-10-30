@@ -13,10 +13,11 @@ from PySide6.QtCore import *
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtGui import *
 import simplepcv as spcv
+import test_opti
 
 
 SCALE_FACTOR = 100
-IMAGE_PATH = 'dtm_large.tif'  # Replace with path to image
+IMAGE_PATH = 'raster.tif'  # Replace with path to image
 
 class UiLoader(QUiLoader):
     """
@@ -256,7 +257,7 @@ def numpy_array_to_qpixmap(arr):
     return QPixmap.fromImage(qimg)
 
 class ImageViewer(QMainWindow):
-    def __init__(self, image):
+    def __init__(self, image, type='PCV'):
         super().__init__()
 
         # load the ui
@@ -276,18 +277,20 @@ class ImageViewer(QMainWindow):
         self.viewer = PhotoViewer(self)
         self.horizontalLayout_6.addWidget(self.viewer)
 
-        vmin = np.percentile(self.image, 1)  # 1st percentile
-        vmax = np.percentile(self.image, 99)
+        if type=='PCV':
+            vmin,vmax = spcv.compute_optimal_vmin_vmax(self.image)
 
         # Create the sliders and their labels
-        self.slider_min.setMinimum(int(self.image.min() * SCALE_FACTOR))
-        self.slider_min.setMaximum(int(self.image.max() * SCALE_FACTOR))
-        self.slider_min.setValue(int(vmin * SCALE_FACTOR))
+        self.slider_min.setMinimum(int(np.nanmin(self.image) * SCALE_FACTOR))
+        self.slider_min.setMaximum(int(np.nanmax(self.image)  * SCALE_FACTOR))
+        if type=='PCV':
+            self.slider_min.setValue(int(vmin * SCALE_FACTOR))
         self.slider_min.valueChanged.connect(self.update_image)
 
-        self.slider_max.setMinimum(int(self.image.min() * SCALE_FACTOR))
-        self.slider_max.setMaximum(int(self.image.max() * SCALE_FACTOR))
-        self.slider_max.setValue(int(vmax * SCALE_FACTOR))
+        self.slider_max.setMinimum(int(np.nanmin(self.image)  * SCALE_FACTOR))
+        self.slider_max.setMaximum(int(np.nanmax(self.image)  * SCALE_FACTOR))
+        if type == 'PCV':
+            self.slider_max.setValue(int(vmax * SCALE_FACTOR))
         self.slider_max.valueChanged.connect(self.update_image)
 
         self.dial.valueChanged.connect(self.update_image)
@@ -313,7 +316,7 @@ class ImageViewer(QMainWindow):
         self.min_value_label.setText(f"Current Min Value: {vmin:.4f}")
         self.max_value_label.setText(f"Current Max Value: {vmax:.4f}")
 
-        pix = spcv.export_results(self.image, vmin, vmax, color_choice,color_factor)
+        pix = spcv.export_results(self.image, vmin, vmax, color_choice,color_factor, optimize_vrange=False)
         self.viewer.setPhoto(numpy_array_to_qpixmap(pix))
 
 
@@ -326,10 +329,17 @@ if __name__ == '__main__':
         elevation[elevation < 0] = np.nan
         height_data = elevation
 
+    cellsize = 1
+    z_factor = 1
+    # Test the individual functions
+    altitude = 45  # Default altitude
+    azimuth = 315  # Default azimuth
+
     visibility = spcv.compute_sky_visibility(height_data)
+    # visibility = spcv.compute_hillshade_for_grid(height_data)
 
     app = QApplication(sys.argv)
-    viewer = ImageViewer(visibility)
+    viewer = ImageViewer(visibility, type='PCV')
     viewer.show()
 
 
